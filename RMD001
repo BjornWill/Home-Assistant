@@ -1,0 +1,84 @@
+blueprint:
+  name: Philips Hue Wall Switch Module in use with ZHA
+  description: Control your Philips Hue lights with a wall switch module using the ZHA integration in Home Assistant.
+  domain: automation
+  input:
+    light_entity:
+      name: Philips Hue light entity
+      description: The entity ID of the Philips Hue light you want to control with the wall switch module.
+      selector:
+        entity:
+          domain: light
+    switch_entity:
+      name: Philips Hue Wall Switch Module entity
+      description: The entity ID of the Philips Hue Wall Switch Module you want to use to control the light.
+      selector:
+        entity:
+          integration: zha
+          domain: switch
+    button_on:
+      name: Button On
+      description: The button on the wall switch module that turns the light on.
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 2
+          mode: slider
+          step: 1
+    button_off:
+      name: Button Off
+      description: The button on the wall switch module that turns the light off.
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 2
+          mode: slider
+          step: 1
+  source_url: https://www.home-assistant.io/blueprints/philips-hue-wall-switch-module-zha/
+
+mode: single
+trigger:
+  platform: state
+  entity_id: !input 'switch_entity'
+action:
+  - choose:
+      - conditions:
+          - condition: state
+            entity_id: !input 'switch_entity'
+            attribute: last_triggered
+            # Set a 2 second delay to avoid false triggers from the switch's bounce-back
+            # or from the switch being toggled too quickly
+            state: 'on'
+            for:
+              seconds: 2
+          - condition: state
+            entity_id: !input 'light_entity'
+            state: 'off'
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: !input 'light_entity'
+    # Turn off the light when the designated switch button is pressed
+      - conditions:
+          - condition: state
+            entity_id: !input 'switch_entity'
+            attribute: last_triggered
+            # Set a 2 second delay to avoid false triggers from the switch's bounce-back
+            # or from the switch being toggled too quickly
+            state: 'off'
+            for:
+              seconds: 2
+          - condition: state
+            entity_id: !input 'light_entity'
+            state: 'on'
+        sequence:
+          - service: light.turn_off
+            target:
+              entity_id: !input 'light_entity'
+    default:
+      # If the switch was triggered, but the light wasn't in the right state to respond,
+      # do nothing
+      - service: homeassistant.turn_off
+        entity_id: !input 'switch_entity'
