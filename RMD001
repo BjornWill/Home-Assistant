@@ -1,6 +1,6 @@
 blueprint:
-  name: Philips Hue Wall Switch Module in use with ZHA
-  description: Control your Philips Hue lights with a wall switch module using the ZHA integration in Home Assistant.
+  name: Philips Hue Wall Switch Module in use with ZHA (with dimming)
+  description: Control your Philips Hue lights with a wall switch module using the ZHA integration in Home Assistant, with support for dimming using long presses.
   domain: automation
   input:
     light_entity:
@@ -16,9 +16,9 @@ blueprint:
         entity:
           integration: zha
           domain: switch
-    button_on:
-      name: Button On
-      description: The button on the wall switch module that turns the light on.
+    button_on_off:
+      name: Button On/Off
+      description: The button on the wall switch module that turns the light on or off with a short press.
       default: 1
       selector:
         number:
@@ -26,9 +26,9 @@ blueprint:
           max: 2
           mode: slider
           step: 1
-    button_off:
-      name: Button Off
-      description: The button on the wall switch module that turns the light off.
+    button_dim_up:
+      name: Button Dim Up
+      description: The button on the wall switch module that dims the light up with a long press.
       default: 2
       selector:
         number:
@@ -36,7 +36,27 @@ blueprint:
           max: 2
           mode: slider
           step: 1
-  source_url: https://www.home-assistant.io/blueprints/philips-hue-wall-switch-module-zha/
+    button_dim_down:
+      name: Button Dim Down
+      description: The button on the wall switch module that dims the light down with a long press.
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 2
+          mode: slider
+          step: 1
+    dim_step:
+      name: Dimming Step
+      description: The percentage to increase or decrease the light's brightness for each long press of the dim up/down button.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: slider
+          step: 1
+  source_url: https://www.home-assistant.io/blueprints/philips-hue-wall-switch-module-zha-with-dimming/
 
 mode: single
 trigger:
@@ -44,6 +64,7 @@ trigger:
   entity_id: !input 'switch_entity'
 action:
   - choose:
+      # Turn on/off the light when the designated switch button is pressed
       - conditions:
           - condition: state
             entity_id: !input 'switch_entity'
@@ -53,32 +74,31 @@ action:
             state: 'on'
             for:
               seconds: 2
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: state
+                    entity_id: !input 'light_entity'
+                    state: 'off'
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id: !input 'light_entity'
+              - conditions:
+                  - condition: state
+                    entity_id: !input 'light_entity'
+                    state: 'on'
+                sequence:
+                  - service: light.turn_off
+                    target:
+                      entity_id: !input 'light_entity'
+      # Dim the light up when the designated switch button is long-pressed
+      - conditions:
           - condition: state
-            entity_id: !input 'light_entity'
-            state: 'off'
+            entity_id: !input 'switch_entity'
+            attribute: last_triggered
+            state: 'on'
+            for:
+              seconds: 4
         sequence:
           - service: light.turn_on
-            target:
-              entity_id: !input 'light_entity'
-    # Turn off the light when the designated switch button is pressed
-      - conditions:
-          - condition: state
-            entity_id: !input 'switch_entity'
-            attribute: last_triggered
-            # Set a 2 second delay to avoid false triggers from the switch's bounce-back
-            # or from the switch being toggled too quickly
-            state: 'off'
-            for:
-              seconds: 2
-          - condition: state
-            entity_id: !input 'light_entity'
-            state: 'on'
-        sequence:
-          - service: light.turn_off
-            target:
-              entity_id: !input 'light_entity'
-    default:
-      # If the switch was triggered, but the light wasn't in the right state to respond,
-      # do nothing
-      - service: homeassistant.turn_off
-        entity_id: !input 'switch_entity'
